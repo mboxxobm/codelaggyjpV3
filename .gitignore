@@ -1,0 +1,5 @@
+# R2から再取得できるデータ・ローカル実行ログはGitHubへ含めない
+r2-downloads/
+server.log
+*.pyc
+__pycache__/

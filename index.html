@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Board-Chart Suite — Tick Viewer + 板・歩み値</title>
+<link rel="icon" href="favicon.ico">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #131722; color: #d1d4dc; font-family: 'Segoe UI', sans-serif;
+    overflow: hidden; height: 100vh; display: flex; flex-direction: column;
+  }
+
+  #toolbar {
+    display: flex; align-items: center; gap: 7px; flex-wrap: nowrap;
+    padding: 5px 12px; background: #1e222d; border-bottom: 1px solid #2a2e39;
+    min-height: 42px; font-size: 12px; flex: 0 0 auto;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+  body.toolbar-two-lines #toolbar {
+    flex-wrap: wrap;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  #toolbar label { color: #787b86; white-space: nowrap; }
+  #toolbar input[type="file"] { color: #d1d4dc; width: 132px; font-size: 11px; flex: 0 0 auto; }
+  #toolbar input[type="text"],
+  #toolbar input[type="date"] {
+    background: #131722; color: #d1d4dc; border: 1px solid #363a45;
+    border-radius: 3px; padding: 3px 6px; font-size: 11px;
+  }
+  #toolbar input[type="date"] { width: 116px; color-scheme: dark; }
+  #toolbar .sep { color: #2a2e39; }
+  #toolbar .pos {
+    color: #4f83ff; font-weight: bold; font-size: 12px;
+    white-space: nowrap; background: rgba(41,98,255,0.12);
+    border: 1px solid rgba(41,98,255,0.28); border-radius: 3px; padding: 2px 6px;
+  }
+  body.pos-hidden #posLabel { display: none; }
+  body.pos-float-left #posLabel,
+  body.pos-float-right #posLabel {
+    position: fixed; z-index: 140; top: 52px;
+    background: rgba(19,23,34,0.86);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  }
+  body.pos-float-left #posLabel { left: 8px; }
+  body.pos-float-right #posLabel { right: 8px; }
+  body.dayvol-left #dayVolWrap { order: -2; }
+  body.top-info-hidden #fileInfo,
+  body.top-info-hidden #instrumentInfo,
+  body.top-info-hidden #loadStatus { display: none; }
+  body.toolbar-tools-hidden .toolbar-optional { display: none; }
+  body.rr-toolbar #rrOverlay {
+    position: static;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    max-width: 560px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: default;
+    box-shadow: none;
+  }
+  body.rr-toolbar #rrOverlay .rr-title,
+  body.rr-toolbar #rrOverlay .rr-bar,
+  body.rr-toolbar #rrOverlay .rr-foot,
+  body.rr-toolbar #rrOverlay hr { display: none; }
+  body.rr-toolbar #rrOverlay .rr-row {
+    gap: 4px;
+    margin: 0;
+    white-space: nowrap;
+  }
+  body.rr-toolbar #rrOverlay .rr-time-row { display: none; }
+  #instrumentInfo {
+    min-width: 120px;
+    max-width: 220px;
+    color: #f6c85f;
+    font-weight: 700;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #loadStatus {
+    color: #8f96a8;
+    font-size: 10px;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #toolbar button {
+    background: #2962ff; color: #fff; border: none; border-radius: 3px;
+    padding: 3px 7px; cursor: pointer; font-size: 11px; white-space: nowrap;
+  }
+  #toolbar button:hover { background: #1e53e5; }
+  #toolbar button.active { background: #e91e63; }
+  #toolbar select {
+    background: #2a2e39; color: #d1d4dc; border: 1px solid #363a45;
+    border-radius: 3px; padding: 2px 4px; font-size: 11px;
+  }
+  #toolbar .r2-tree-trigger {
+    min-width: 154px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+    background: #2a2e39;
+    border: 1px solid #4f83ff;
+  }
+  #toolbar .r2-symbol-tree {
+    position: fixed;
+    z-index: 460;
+    display: none;
+    width: min(470px, calc(100vw - 16px));
+    max-height: min(620px, calc(100vh - 76px));
+    overflow: hidden;
+    padding: 9px;
+    border: 1px solid #4f83ff;
+    border-radius: 6px;
+    background: rgba(24, 28, 38, 0.99);
+    box-shadow: 0 12px 34px rgba(0,0,0,0.55);
+    white-space: normal;
+  }
+  #toolbar .r2-symbol-tree.open { display: grid; gap: 8px; }
+  #toolbar .r2-tree-search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    color: #f2f4f8;
+    background: #131722;
+    border: 1px solid #3d4352;
+    border-radius: 4px;
+    font-size: 14px;
+    outline: none;
+  }
+  #toolbar .r2-tree-search:focus { border-color: #4f83ff; }
+  #toolbar .r2-tree-groups {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  #toolbar .r2-tree-group { border-bottom: 1px solid #2a2e39; }
+  #toolbar .r2-tree-group summary {
+    padding: 7px 5px;
+    color: #aeb4c2;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  #toolbar .r2-tree-row {
+    display: grid;
+    grid-template-columns: 58px minmax(120px, 1fr) 58px;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    padding: 7px 8px;
+    color: #d1d4dc;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid #242936;
+    border-radius: 0;
+    text-align: left;
+  }
+  #toolbar .r2-tree-row:hover,
+  #toolbar .r2-tree-row.active { background: rgba(41,98,255,0.2); }
+  .r2-tree-code { color: #f6c85f; font-weight: 700; }
+  .r2-tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .r2-tree-days { color: #8f96a8; font-size: 10px; text-align: right; }
+  .r2-tree-empty { padding: 18px 8px; color: #8f96a8; text-align: center; }
+  .symbol-search {
+    position: fixed;
+    top: 56px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 420;
+    display: none;
+    width: min(520px, calc(100vw - 28px));
+    padding: 8px;
+    border: 1px solid #363a45;
+    border-radius: 6px;
+    background: rgba(30,34,45,0.98);
+    box-shadow: 0 8px 26px rgba(0,0,0,0.45);
+  }
+  .symbol-search.open { display: grid; gap: 6px; }
+  .symbol-search input {
+    width: 100%;
+    background: #131722;
+    color: #d1d4dc;
+    border: 1px solid #363a45;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 16px;
+    outline: none;
+  }
+  .symbol-search-results {
+    max-height: min(340px, calc(100vh - 130px));
+    overflow-y: auto;
+    border-top: 1px solid #2a2e39;
+  }
+  .symbol-search-row {
+    display: grid;
+    grid-template-columns: 86px 1fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 7px 8px;
+    color: #d1d4dc;
+    border-bottom: 1px solid #252936;
+    cursor: pointer;
+  }
+  .symbol-search-row:hover,
+  .symbol-search-row.active {
+    background: rgba(41,98,255,0.2);
+  }
+  .timeframe-dialog {
+    position: fixed; z-index: 500; top: 72px; left: 50%; transform: translateX(-50%);
+    display: none; width: min(420px, calc(100vw - 28px)); padding: 12px;
+    border: 1px solid #4f83ff; border-radius: 7px; background: rgba(30,34,45,0.98);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+  }
+  .timeframe-dialog.open { display: grid; gap: 8px; }
+  .timeframe-dialog strong { color: #f6c85f; font-size: 13px; }
+  .timeframe-dialog input {
+    width: 100%; background: #131722; color: #fff; border: 1px solid #4f83ff;
+    border-radius: 4px; padding: 9px 10px; font-size: 18px; outline: none;
+  }
+  .timeframe-dialog small { color: #8f96a8; }
+  .symbol-search-code { color: #f6c85f; font-weight: 700; }
+  .symbol-search-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .symbol-search-count { color: #8f96a8; font-size: 11px; }
+  .tool-group {
+    display: flex; align-items: center; gap: 4px;
+    border: 1px solid #2a2e39; border-radius: 4px; padding: 2px 6px;
+    min-height: 28px; flex: 0 0 auto;
+  }
+  .tool-group.compact-buttons button {
+    min-width: 28px;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .tool-group span { color: #787b86; font-size: 11px; }
+  .settings-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 240;
+    display: none;
+    background: rgba(0,0,0,0.25);
+  }
+  .settings-backdrop.open { display: block; }
+  .settings-menu {
+    position: fixed;
+    top: 58px;
+    right: 18px;
+    z-index: 260;
+    display: none;
+    width: min(360px, calc(100vw - 28px));
+    max-height: calc(100vh - 82px);
+    overflow-y: auto;
+    padding: 12px;
+    border: 1px solid #363a45;
+    border-radius: 6px;
+    background: rgba(30,34,45,0.98);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.38);
+  }
+  .settings-menu.open { display: grid; gap: 10px; }
+  .settings-menu button { width: 100%; text-align: left; }
+  .settings-menu select {
+    flex: 1;
+    min-width: 0;
+    background: #2a2e39;
+    color: #d1d4dc;
+    border: 1px solid #363a45;
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-size: 11px;
+  }
+  .settings-menu .settings-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .settings-menu .settings-head strong {
+    color: #d1d4dc;
+    font-size: 13px;
+  }
+  .settings-menu .settings-close {
+    width: auto;
+    min-width: 28px;
+    text-align: center;
+    background: #374151;
+  }
+  .settings-menu .settings-section {
+    display: grid;
+    gap: 5px;
+    padding-top: 6px;
+    border-top: 1px solid #363a45;
+  }
+  .settings-menu .settings-title {
+    color: #8f96a8;
+    font-size: 10px;
+  }
+  .settings-menu .check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #d1d4dc;
+    font-size: 11px;
+  }
+  .settings-menu .check-row label {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #d1d4dc;
+  }
+  .spacer { flex: 1; }
+
+  /* ===== Main grid with layout variants & CSS vars ===== */
+  #main {
+    position: relative;
+    height: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    --col-daily: 320px;
+    --col-a: 1fr;
+    --col-b: 1fr;
+    --col-c: 300px;
+    --col-d: 300px;
+    --row-1: 1fr;
+    --row-2: 1fr;
+  }
+  /* Layout A: sidebar (board top, ayumi bottom) — 15s spans bottom row across chart cols */
+  #main.layout-a {
+    grid-template-columns: var(--col-a) var(--col-b) var(--col-c);
+    grid-template-rows: var(--row-1) var(--row-2);
+    grid-template-areas:
+      "p2m p5m board"
+      "p10m p10m ayumi";
+  }
+  /* Layout B: board + ayumi as two tall columns; 15s spans bottom-left two columns */
+  #main.layout-b {
+    grid-template-columns: var(--col-a) var(--col-b) var(--col-c) var(--col-d);
+    grid-template-rows: var(--row-1) var(--row-2);
+    grid-template-areas:
+      "p2m p5m board ayumi"
+      "p10m p10m board ayumi";
+  }
+  /* Layout C: charts only */
+  #main.layout-c {
+    grid-template-columns: var(--col-a) var(--col-b);
+    grid-template-rows: var(--row-1) var(--row-2);
+    grid-template-areas:
+      "p2m p5m"
+      "p10m p10m";
+  }
+  #main.layout-c #boardPanel, #main.layout-c #ayumiPanel { display: none; }
+
+  /* Layout E: 3-screen MTF — Daily top-left, variable minutes bottom-left, variable TF full-right */
+  #main.layout-e {
+    grid-template-columns: minmax(280px, var(--col-a)) minmax(420px, var(--col-b));
+    grid-template-rows: var(--row-1) var(--row-2);
+    grid-template-areas:
+      "p1d p10m"
+      "p2m p10m";
+  }
+  #main.layout-e #p5m,
+  #main.layout-e #boardPanel,
+  #main.layout-e #ayumiPanel { display: none; }
+
+  /* Single chart mode: TradingView-style focus chart */
+  body.single-chart-mode #main {
+    display: block;
+  }
+  body.single-chart-mode #main > .panel,
+  body.single-chart-mode #p1d {
+    display: none !important;
+  }
+  body.single-chart-mode #main > .panel.single-active {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
+  }
+  body.single-chart-mode .resizer {
+    display: none !important;
+  }
+
+  /* Layout D: Daily inline at left end of 15-sec (bottom-left), board+ayumi right */
+  #main.layout-d {
+    grid-template-columns: var(--col-daily) var(--col-a) var(--col-b) var(--col-c) var(--col-d);
+    grid-template-rows: var(--row-1) var(--row-2);
+    grid-template-areas:
+      "p2m p2m p5m board ayumi"
+      "p1d p10m p10m board ayumi";
+  }
+  /* In layout-d, Daily becomes an inline grid cell, not floating */
+  #main.layout-d #p1d,
+  #main.layout-e #p1d {
+    position: static;
+    width: auto; height: auto;
+    right: auto; bottom: auto;
+    grid-area: p1d;
+    border-radius: 0;
+    box-shadow: none;
+    border: 1px solid #2a2e39;
+    cursor: default;
+    transition: none;
+  }
+  #main.layout-d #p1d.expanded,
+  #main.layout-e #p1d.expanded {
+    width: auto; height: auto; right: auto; bottom: auto;
+  }
+  #main.layout-d #p1d .expand-hint,
+  #main.layout-e #p1d .expand-hint { display: none; }
+
+  #p2m  { grid-area: p2m;  }
+  #p5m  { grid-area: p5m;  }
+  #p10m { grid-area: p10m; }
+  #p1d  { grid-area: p1d; }
+  #boardPanel { grid-area: board; }
+  #ayumiPanel { grid-area: ayumi; }
+
+  /* ===== Board: price-cell colored marker from hlines & manual marker ===== */
+  table.board td.price.hl-colored {
+    font-weight: bold;
+  }
+  table.board td.price.marked::before {
+    content: '★';
+    color: #ffd54f;
+    margin-right: 3px;
+    font-size: 10px;
+  }
+  table.board td.price { cursor: pointer; user-select: none; }
+  table.board td.price:hover { filter: brightness(1.4); }
+
+  /* ===== Floating Daily panel ===== */
+  #p1d {
+    position: fixed;
+    width: 320px;
+    height: 200px;
+    z-index: 80;
+    border: 1px solid #363a45;
+    background: #131722;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    overflow: hidden;
+    cursor: pointer;
+    transition: width 0.25s, height 0.25s, right 0.25s, bottom 0.25s;
+  }
+  #p1d:hover { border-color: #2962ff; }
+  /* Corner placements (not applied in layout-d) */
+  #p1d.corner-bl { left: 12px;  bottom: 12px; right: auto; top: auto; }
+  #p1d.corner-br { right: 12px; bottom: 12px; left: auto;  top: auto; }
+  #p1d.corner-tl { left: 12px;  top: 54px;    right: auto; bottom: auto; }
+  #p1d.corner-tr { right: 12px; top: 54px;    left: auto;  bottom: auto; }
+  #p1d.expanded {
+    width: 70vw !important;
+    height: 70vh !important;
+    left: 15vw !important;
+    top: 15vh !important;
+    right: auto !important;
+    bottom: auto !important;
+    cursor: default;
+    z-index: 120;
+  }
+  #p1d .panel-label {
+    background: rgba(19,23,34,0.85);
+  }
+  #p1d .expand-hint {
+    position: absolute;
+    top: 6px; right: 8px;
+    z-index: 11;
+    font-size: 11px;
+    color: #787b86;
+    background: rgba(19,23,34,0.7);
+    padding: 2px 6px;
+    border-radius: 3px;
+    pointer-events: none;
+  }
+  #p1d.expanded .expand-hint::before { content: '✕ 閉じる (クリック)'; }
+  #p1d:not(.expanded) .expand-hint::before { content: '⇱ クリックで拡大'; }
+
+  .panel {
+    position: relative;
+    border: 1px solid #2a2e39;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .panel-label {
+    position: absolute; top: 6px; left: 10px; z-index: 10;
+    font-size: 12px; font-weight: bold; color: #787b86;
+    background: rgba(19,23,34,0.7); padding: 2px 6px; border-radius: 3px;
+  }
+  .panel.tf-active { box-shadow: inset 0 0 0 2px rgba(79,131,255,0.75); }
+  .volume-candle-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .board-profile-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .executed-profile-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 7;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .rr-ray-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .chart-tooltip {
+    position: absolute;
+    z-index: 20;
+    display: none;
+    min-width: 138px;
+    padding: 6px 8px;
+    border: 1px solid #363a45;
+    border-radius: 4px;
+    background: rgba(19, 23, 34, 0.94);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+    color: #d1d4dc;
+    font-size: 11px;
+    line-height: 1.45;
+    pointer-events: none;
+    font-family: 'Menlo','Monaco',monospace;
+  }
+  .chart-tooltip .tt-title { color: #8f96a8; margin-bottom: 2px; }
+  .chart-tooltip .tt-up { color: #00e676; font-weight: 700; }
+  .chart-tooltip .tt-down { color: #ff5252; font-weight: 700; }
+  .chart-tooltip .tt-vol { color: #ffd54f; font-weight: 700; }
+
+  /* ===== Board & Ayumi panels ===== */
+  #boardPanel, #ayumiPanel {
+    background: #1a1f2b;
+    display: flex; flex-direction: column;
+    font-family: 'Menlo','Monaco',monospace;
+  }
+  .sb-title {
+    padding: 6px 10px; background: #252b38; color: #4fc3f7;
+    font-size: 11px; font-weight: bold;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-shrink: 0;
+  }
+  .sb-title .badge {
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+    background: #374151; color: #d1d5db;
+  }
+  .sb-title .badge.buy { background: #064e3b; color: #6ee7b7; }
+  .sb-title .badge.sell { background: #7f1d1d; color: #fca5a5; }
+
+  #boardWrap { flex: 1 1 auto; overflow-y: auto; }
+  table.board { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.board td {
+    padding: 2px 8px; border-bottom: 1px solid #22283a;
+    font-variant-numeric: tabular-nums;
+  }
+  table.board td.price {
+    text-align: center; width: 70px; background: #1e222d; color: #aaa;
+  }
+  table.board td.ask { color: #ef5350; text-align: right; position: relative; }
+  table.board td.bid { color: #26a69a; text-align: right; position: relative; }
+  table.board .bar {
+    position: absolute; top: 0; bottom: 0; opacity: 0.2;
+  }
+  table.board .bar-ask { right: 0; background: #ef5350; }
+  table.board .bar-bid { left: 0; background: #26a69a; }
+  table.board .content { position: relative; z-index: 1; }
+  table.board tr.last td.price {
+    background: #3a3015; color: #ffd54f; font-weight: bold;
+  }
+
+  #ayumiWrap { flex: 1 1 auto; overflow-y: auto; }
+  .ayumi-row {
+    display: grid; grid-template-columns: 64px 1fr 70px;
+    padding: 2px 10px; font-size: 11px;
+    border-bottom: 1px dotted #22283a;
+  }
+  .ayumi-row .t { color: #6a7182; }
+  .ayumi-row .p.up { color: #26a69a; }
+  .ayumi-row .p.down { color: #ef5350; }
+  .ayumi-row .p.flat { color: #999; }
+  .ayumi-row .v { text-align: right; color: #ccc; }
+
+  .sb-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: #2a2e39; flex-shrink: 0;
+  }
+  .sb-stat { background: #1a1f2b; padding: 6px 10px; }
+  .sb-stat .lb { color: #6a7182; font-size: 10px; }
+  .sb-stat .vl { font-size: 13px; font-weight: bold; color: #fff; margin-top: 2px; }
+  .sb-stat .vl.buy { color: #26a69a; }
+  .sb-stat .vl.sell { color: #ef5350; }
+
+  /* ===== Resizers ===== */
+  .resizer {
+    position: absolute;
+    z-index: 50;
+    background: transparent;
+    transition: background 0.15s;
+  }
+  .resizer:hover, .resizer.dragging {
+    background: rgba(41, 98, 255, 0.5);
+  }
+  .resizer.v {
+    width: 6px;
+    top: 0; bottom: 0;
+    cursor: col-resize;
+    transform: translateX(-3px);
+  }
+  .resizer.h {
+    height: 6px;
+    left: 0; right: 0;
+    cursor: row-resize;
+    transform: translateY(-3px);
+  }
+  body.resizing, body.resizing * { user-select: none !important; cursor: inherit; }
+  body.resizing-v, body.resizing-v * { cursor: col-resize !important; }
+  body.resizing-h, body.resizing-h * { cursor: row-resize !important; }
+
+  /* ===== RR overlay ===== */
+  #rrOverlay {
+    position: fixed; z-index: 100;
+    background: rgba(30,34,45,0.95); border: 1px solid #363a45;
+    border-radius: 6px; padding: 10px 14px; min-width: 210px;
+    font-size: 12px; color: #d1d4dc; display: none;
+    cursor: move;
+  }
+  #rrOverlay.rr-tl { top: 50px;  left: 16px;  right: auto;  bottom: auto; }
+  #rrOverlay.rr-bl { bottom: 16px; left: 16px; right: auto;  top: auto;   }
+  #rrOverlay.rr-br { bottom: 16px; right: 16px; left: auto;  top: auto;   }
+  #rrOverlay.rr-tr { top: 50px;  right: 16px; left: auto;   bottom: auto; }
+  #rrOverlay:hover { border-color: #2962ff; }
+  #rrOverlay .rr-title { font-weight: bold; margin-bottom: 6px; font-size: 13px; }
+  #rrOverlay .rr-row { display: flex; justify-content: space-between; margin: 3px 0; }
+  #rrOverlay .rr-val { font-weight: bold; }
+  .rr-tp { color: #26a69a; }
+  .rr-entry { color: #2962ff; }
+  .rr-sl { color: #ef5350; }
+  .rr-ratio { color: #ff9800; font-size: 14px; font-weight: bold; }
+  #rrOverlay .rr-bar { margin-top: 8px; height: 18px; border-radius: 3px; display: flex; overflow: hidden; }
+  #rrOverlay .rr-bar-risk { background: rgba(239,83,80,0.5); }
+  #rrOverlay .rr-bar-reward { background: rgba(38,166,154,0.5); }
+  body.rr-dragging, body.rr-dragging * { cursor: ns-resize !important; }
+  body.rr-dragging .panel canvas { pointer-events: none; }
+  body.hline-dragging, body.hline-dragging * { cursor: ns-resize !important; }
+  body.hline-dragging .panel canvas { pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <label>Data:</label>
+  <input type="file" id="csvFile" accept=".csv,.json,application/json" multiple>
+  <div class="tool-group">
+    <input id="r2Symbol" type="hidden" value="9984">
+    <button id="btnR2Tree" class="r2-tree-trigger" type="button" aria-haspopup="tree" aria-expanded="false" title="R2にある銘柄をツリーから選択">R2銘柄 ▾</button>
+    <div id="r2SymbolTree" class="r2-symbol-tree" aria-hidden="true">
+      <input id="r2TreeSearch" class="r2-tree-search" type="search" placeholder="銘柄コード / 会社名で検索" autocomplete="off">
+      <div id="r2TreeGroups" class="r2-tree-groups" role="tree" aria-label="R2銘柄一覧"></div>
+    </div>
+    <span>期間:</span>
+    <input id="r2DateFrom" type="date" title="検証開始日">
+    <span>〜</span>
+    <input id="r2DateTo" type="date" title="検証終了日">
+    <button id="btnLoadR2" title="R2にある同一銘柄のCSVを期間指定して日付順に結合">R2結合</button>
+    <button id="btnR2Latest" title="最新取引日だけを軽量読込">最新日</button>
+    <button id="btnR2All" title="R2にある全取引日を読込（データ量により時間がかかります）">全期間</button>
+  </div>
+  <select id="symbolSelect" title="複数銘柄JSONの銘柄切替" style="display:none;max-width:170px;"></select>
+  <div id="symbolSearch" class="symbol-search" aria-hidden="true">
+    <input id="symbolSearchInput" type="text" placeholder="銘柄コード / 銘柄名" autocomplete="off">
+    <div id="symbolSearchResults" class="symbol-search-results"></div>
+  </div>
+  <span id="fileInfo" style="color:#787b86;font-size:10px;max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+  <span id="instrumentInfo" title="ファイル名またはJSONマスタから銘柄名を表示します">銘柄: —</span>
+  <span id="loadStatus">CSV/JSON選択で自動再生</span>
+
+  <span class="sep">|</span>
+
+  <div class="tool-group toolbar-optional">
+    <span>Step:</span>
+    <input id="stepSize" type="number" min="1" step="1" value="50" list="stepPresets" title="移動Tick数。手入力可" style="width:62px;">
+    <datalist id="stepPresets">
+      <option value="1"></option>
+      <option value="10"></option>
+      <option value="50"></option>
+      <option value="100"></option>
+      <option value="500"></option>
+      <option value="1000"></option>
+      <option value="2000"></option>
+    </datalist>
+    <button id="btnJumpMorningEnd" title="前場終わり 11:30 へ移動 (8)">前場終</button>
+    <button id="btnJumpAfternoonEnd" title="後場終わり 15:30 へ移動 (9)">後場終</button>
+  </div>
+
+  <div class="tool-group toolbar-optional">
+    <span>Z/X A/E S 1-9</span>
+    <button id="btnCrosshairSync" title="十字カーソル同期ON/OFF (C)">✚ 同期</button>
+  </div>
+
+  <span class="sep">|</span>
+
+  <div class="tool-group toolbar-optional compact-buttons">
+    <span>指標:</span>
+    <button id="btnBoardProfile" class="active" title="板の価格帯別出来高を表示">板</button>
+    <button id="btnExecutedProfile" title="約定済出来高を表示">約定</button>
+  </div>
+
+  <div class="tool-group toolbar-optional">
+    <span>描画:</span>
+    <button id="btnHLine" title="水平線 (H)">― 水平線</button>
+    <input type="color" id="hlineColor" value="#ffeb3b" title="水平線の色" style="width:22px;height:20px;padding:0;border:1px solid #363a45;border-radius:3px;cursor:pointer;background:transparent;">
+    <select id="hlineStyle" title="水平線の線種">
+      <option value="0">実線</option>
+      <option value="1">破線</option>
+      <option value="2">点線</option>
+      <option value="3">一点鎖線</option>
+    </select>
+    <button id="btnRay" title="レイライン (R)">⟶ レイ</button>
+    <button id="btnRR" title="リスクリワード (T)">RR計測</button>
+    <button id="btnRRToggle" title="RR表示切替 (G)">RR表示</button>
+    <button id="btnEP" title="EP（推奨エントリー）をチャートへ記録">EP</button>
+    <button id="btnTP" title="TP（決済ポイント）をチャートへ記録">TP</button>
+    <button id="btnReviewList" title="この銘柄のEP／TP一覧">記録一覧</button>
+    <button id="btnDelLine" title="直近の線を削除 (D)">✕ 削除</button>
+  </div>
+
+  <div class="tool-group settings-group" id="settingsGroup">
+    <button id="btnSettings" title="詳細設定">設定</button>
+  </div>
+
+  <span id="rrInfo" style="color:#d1d4dc;font-size:11px;white-space:nowrap;"></span>
+  <div id="rrDock" style="display:none;"></div>
+  <span class="spacer"></span>
+  <div class="tool-group">
+    <span>進捗:</span>
+    <button id="btnPosMove" title="進捗表示の位置を切替">位置</button>
+    <button id="btnPosHide" title="進捗表示を隠す/表示">隠す</button>
+  </div>
+  <span id="dayVolWrap" style="display:flex;align-items:center;gap:6px;font-size:11px;color:#787b86;">
+    <span>出来高:</span>
+    <span id="dayVolValue" style="color:#ffd54f;font-weight:bold;font-size:12px;">—</span>
+    <button id="btnVolToggle" title="出来高表示を非表示">👁</button>
+  </span>
+  <span class="pos" id="posLabel">0 / 0</span>
+</div>
+
+<div class="settings-backdrop" id="settingsBackdrop"></div>
+<div class="settings-menu" id="settingsMenu">
+  <div class="settings-head">
+    <strong>設定</strong>
+    <button class="settings-close" id="btnSettingsClose" title="閉じる">×</button>
+  </div>
+  <div class="settings-section">
+    <div class="settings-title">表示</div>
+    <button id="btnVolumeCandle" class="active" title="出来高が多い足を太く表示">VolCandle: ON</button>
+    <button id="btnFollow" title="右端追従ON/OFF (F)">追従: OFF</button>
+    <div class="check-row">
+      <label><input type="checkbox" id="chkRrToolbar">RR表示を上部にはめ込む</label>
+    </div>
+    <div class="check-row">
+      <label><input type="checkbox" id="btnVwapLabel">VWAP名を表示</label>
+    </div>
+    <div class="check-row">
+      <label>VWAP色</label>
+      <input type="color" id="vwapColor" value="#2962ff" title="VWAP色" style="width:36px;height:22px;padding:0;border:1px solid #363a45;border-radius:3px;cursor:pointer;background:transparent;">
+    </div>
+    <div class="check-row">
+      <label><input type="checkbox" id="chkDayVolLeft">出来高を左へ移動</label>
+    </div>
+    <div class="check-row">
+      <label><input type="checkbox" id="chkTopInfoHidden">上部の銘柄/読込表示を隠す</label>
+    </div>
+    <div class="check-row">
+      <label><input type="checkbox" id="chkToolbarToolsHidden">上部ツール群を隠す</label>
+    </div>
+  </div>
+  <div class="settings-section">
+    <div class="settings-title">レイアウト</div>
+    <div class="check-row">
+      <label>日足</label>
+      <select id="dailyCorner" title="日足ウィンドウの位置">
+        <option value="bl" selected>左下</option>
+        <option value="br">右下</option>
+        <option value="tl">左上</option>
+        <option value="tr">右上</option>
+      </select>
+    </div>
+    <div class="check-row">
+      <label>表示</label>
+      <select id="layoutSelect" title="パネル配置">
+        <option value="a">A: サイドバー</option>
+        <option value="b" selected>B: 標準</option>
+        <option value="c">C: チャートのみ</option>
+        <option value="d">D: 日足インライン</option>
+        <option value="e">E: 日足＋可変MTF 3画面</option>
+      </select>
+    </div>
+    <button id="btnResetLayout" title="列幅・行高をリセット">レイアウトをリセット</button>
+    <button id="btnToolbarRows" title="ツールバーを1列/2列で切替">ツールバー: 2列</button>
+  </div>
+  <div class="settings-section">
+    <div class="settings-title">板出来高</div>
+    <button id="btnBoardProfileSettings" title="板出来高の全体ON/OFF">板出来高: ON</button>
+    <div class="check-row">
+      <label><input type="checkbox" class="profile-tf" data-profile="board" data-tf="2m" checked>2M</label>
+      <label><input type="checkbox" class="profile-tf" data-profile="board" data-tf="10m" checked>10M</label>
+      <label><input type="checkbox" class="profile-tf" data-profile="board" data-tf="15s">15S</label>
+    </div>
+  </div>
+  <div class="settings-section">
+    <div class="settings-title">約定出来高</div>
+    <button id="btnExecutedProfileSettings" title="約定出来高の全体ON/OFF">約定出来高: OFF</button>
+    <div class="check-row">
+      <label><input type="checkbox" id="chkExecutedLabels">％ / vol を表示</label>
+    </div>
+    <div class="check-row">
+      <label><input type="checkbox" class="profile-tf" data-profile="executed" data-tf="2m" checked>2M</label>
+      <label><input type="checkbox" class="profile-tf" data-profile="executed" data-tf="10m" checked>10M</label>
+      <label><input type="checkbox" class="profile-tf" data-profile="executed" data-tf="15s">15S</label>
+    </div>
+  </div>
+</div>
+
+<div id="rrOverlay" class="rr-tl" title="クリックで位置切替 (左上→左下→右下)"></div>
+
+<div id="timeframeDialog" class="timeframe-dialog" aria-hidden="true">
+  <strong id="timeframeDialogTitle">時間足を変更</strong>
+  <input id="timeframeInput" type="text" placeholder="例: 15s / 15 / D / 60" autocomplete="off">
+  <small>15s＝15秒、15＝15分、D＝日足、60＝60分。Enterで決定 / Escで閉じる</small>
+</div>
+
+<div id="main" class="layout-b">
+  <div class="panel" id="p2m"><span class="panel-label">2 min</span></div>
+  <div class="panel" id="p5m"><span class="panel-label">10 min</span></div>
+  <div class="panel" id="p10m"><span class="panel-label">15 sec</span></div>
+  <div class="panel corner-bl" id="p1d">
+    <span class="panel-label">Daily</span>
+    <span class="expand-hint"></span>
+  </div>
+
+  <div class="panel" id="boardPanel">
+    <div class="sb-title">
+      <span>📋 気配値 <span id="tickInfo" style="color:#787b86;font-weight:normal;font-size:10px;margin-left:4px;"></span></span>
+      <span class="badge" id="boardBadge">—</span>
+    </div>
+    <div id="boardWrap">
+      <table class="board"><tbody id="boardBody"></tbody></table>
+    </div>
+    <div class="sb-stats">
+      <div class="sb-stat"><div class="lb">現在値</div><div class="vl" id="sbLast">—</div></div>
+      <div class="sb-stat"><div class="lb">時刻</div><div class="vl" id="sbTime">—</div></div>
+      <div class="sb-stat"><div class="lb">売 (A / X こなす)</div><div class="vl sell" id="sbAsk">0</div></div>
+      <div class="sb-stat"><div class="lb">買 (B / Y こなす)</div><div class="vl buy" id="sbBid">0</div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="ayumiPanel">
+    <div class="sb-title">
+      <span>📈 歩み値</span>
+      <span class="badge" id="ayumiCount">0 件</span>
+    </div>
+    <div id="ayumiWrap"></div>
+  </div>
+
+  <!-- Resize handles -->
+  <div class="resizer v" id="rz-v1" data-kind="v1"></div>
+  <div class="resizer v" id="rz-v2" data-kind="v2"></div>
+  <div class="resizer v" id="rz-v3" data-kind="v3"></div>
+  <div class="resizer h" id="rz-h1" data-kind="h1"></div>
+</div>
+
+<script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+<script src="jp-symbols.js"></script>
+<script src="r2-config-live.js"></script>
+<script src="app-fast-replay-20260628.js?v=9"></script>
+<script src="board.js?v=fast-replay-3"></script>
+<script src="layout.js?v=layout-e-1"></script>
+<script src="restore-v2-addon.js?v=1"></script>
+</body>
+</html>
