@@ -3,6 +3,7 @@
 // ---------- state ----------
 let ticks = [];          // [{time: unix_sec (UTC), price, volume}, ...] sorted asc
 let cursor = 0;
+let lastReplayKeyAt = 0; // prevents key-repeat / accidental double press from overshooting
 let replaySeriesCache = null; // pre-aggregated candles/VWAP for fast Z/X replay
 let autoPlay = null;
 let drawMode = null;     // null | 'hline' | 'ray' | 'rr'
@@ -1499,6 +1500,16 @@ function step(delta) {
   restoreVisibleRanges(ranges);
 }
 
+function stepFromKeyboard(delta, event) {
+  // Holding a key emits repeated keydown events.  A short guard also absorbs
+  // accidental double taps, while deliberately pressed keys remain usable.
+  if (event?.repeat) return;
+  const now = performance.now();
+  if (now - lastReplayKeyAt < 180) return;
+  lastReplayKeyAt = now;
+  step(delta);
+}
+
 function goStart() {
   cursor = 0;
   render();
@@ -1542,6 +1553,24 @@ function jumpToJstClock(hour, minute, second = 0) {
   const index = findLastTickIndexAtOrBefore(targetUtcSec);
   cursor = Math.max(0, index >= 0 ? index : 0);
   render();
+}
+
+function jumpToJstDateTime(value) {
+  if (ticks.length === 0 || !value) return;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!match) return;
+  const [, year, month, day, hour, minute] = match.map(Number);
+  const targetUtcSec = Date.UTC(year, month - 1, day, hour, minute, 0) / 1000 - JST_OFFSET;
+  const index = findLastTickIndexAtOrBefore(targetUtcSec);
+  if (index < 0) {
+    document.getElementById('loadStatus').textContent = '指定日時より前のデータがありません';
+    return;
+  }
+  stopAutoPlay();
+  cursor = index;
+  render();
+  // A deliberate date jump may change day, so recenter once here only.
+  applyInitialChartView();
 }
 
 function jumpMorningEnd() {
@@ -2344,8 +2373,8 @@ document.addEventListener('keydown', e => {
   }
 
   switch (key) {
-    case 'z': step(-1); break;
-    case 'x': step(1); break;
+    case 'z': stepFromKeyboard(-1, e); break;
+    case 'x': stepFromKeyboard(1, e); break;
     case 'a': goStart(); break;
     case 'e': goEnd(); break;
     case 's': toggleAutoPlay(); break;
@@ -3281,6 +3310,14 @@ if (symbolSearchResults) {
   if (jumpMorningEndBtn) jumpMorningEndBtn.addEventListener('click', jumpMorningEnd);
   const jumpAfternoonEndBtn = document.getElementById('btnJumpAfternoonEnd');
   if (jumpAfternoonEndBtn) jumpAfternoonEndBtn.addEventListener('click', jumpAfternoonEnd);
+  const jumpDateTimeBtn = document.getElementById('btnJumpDateTime');
+  const jumpDateTimeInput = document.getElementById('jumpDateTime');
+  if (jumpDateTimeBtn && jumpDateTimeInput) {
+    jumpDateTimeBtn.addEventListener('click', () => jumpToJstDateTime(jumpDateTimeInput.value));
+    jumpDateTimeInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); jumpToJstDateTime(jumpDateTimeInput.value); }
+    });
+  }
   const boardProfileSettingsBtn = document.getElementById('btnBoardProfileSettings');
   if (boardProfileSettingsBtn) boardProfileSettingsBtn.addEventListener('click', toggleBoardProfile);
   const executedProfileSettingsBtn = document.getElementById('btnExecutedProfileSettings');
