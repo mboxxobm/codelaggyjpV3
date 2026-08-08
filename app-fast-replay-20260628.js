@@ -95,6 +95,13 @@ function sessionOpenUTC(utcSec) {
 
 // Bucket time in real UTC, aligned to 09:00 JST
 function bucketTimeUTC(utcSec, tfSec) {
+  if (tfSec === 604800) {
+    const jstSec = utcSec + JST_OFFSET;
+    const dayStart = Math.floor(jstSec / 86400) * 86400;
+    const weekday = new Date(dayStart * 1000).getUTCDay(); // Sunday=0
+    const mondayStart = dayStart - ((weekday + 6) % 7) * 86400;
+    return mondayStart - JST_OFFSET;
+  }
   if (tfSec >= 86400) {
     // daily: bucket = midnight JST → as real UTC
     const jstSec = utcSec + JST_OFFSET;
@@ -313,6 +320,9 @@ function parseTimeframeSpec(value) {
   if (raw === 'D' || raw === '1D' || raw === 'DAILY') {
     return { sec: 86400, key: '1d', label: 'Daily', input: 'D' };
   }
+  if (raw === 'W' || raw === '1W' || raw === 'WEEKLY') {
+    return { sec: 604800, key: '1w', label: 'Weekly', input: 'W' };
+  }
   let sec = null;
   if (/^\d+S$/.test(raw)) sec = parseInt(raw, 10);
   else if (/^\d+(M|MIN)$/.test(raw)) sec = parseInt(raw, 10) * 60;
@@ -410,7 +420,7 @@ if (timeframeInput) {
     event.preventDefault();
     const parsed = parseTimeframeSpec(timeframeInput.value);
     if (!parsed) {
-      timeframeInput.setCustomValidity('15s / 15 / D / 60 の形式で入力してください');
+      timeframeInput.setCustomValidity('15s / 15 / 60 / D / W の形式で入力してください');
       timeframeInput.reportValidity();
       return;
     }

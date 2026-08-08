@@ -720,6 +720,9 @@
 
   <div class="tool-group toolbar-optional">
     <span>Z/X A/E S 1-9</span>
+    <select id="quickTimeframe" title="青枠の選択中チャートの時間足を変更">
+      <option value="">時間足</option><option value="15s">15秒</option><option value="2">2分</option><option value="3">3分</option><option value="5">5分</option><option value="10">10分</option><option value="15">15分</option><option value="30">30分</option><option value="60">60分</option><option value="D">日足</option><option value="W">週足</option>
+    </select>
     <button id="btnCrosshairSync" title="十字カーソル同期ON/OFF (C)">✚ 同期</button>
   </div>
 
@@ -905,9 +908,9 @@
 <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 <script src="jp-symbols.js"></script>
 <script src="r2-config-live.js?v=local-cache-20260808"></script>
-<script src="app-fast-replay-20260628.js?v=local-cache-20260808"></script>
+<script src="app-fast-replay-20260628.js?v=mtf-week-20260808"></script>
 <script src="board.js?v=fast-replay-3"></script>
 <script src="layout.js?v=layout-e-1"></script>
-<script src="restore-v2-addon.js?v=actual-trade-layout-20260808"></script>
+<script src="restore-v2-addon.js?v=mtf-week-20260808"></script>
 </body>
 </html>

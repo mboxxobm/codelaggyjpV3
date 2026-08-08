@@ -85,6 +85,10 @@
   const panel = document.createElement('aside'); panel.id = 'reviewPanel'; document.body.appendChild(panel);
   document.getElementById('btnEP')?.addEventListener('click', () => setMode('EP'));
   document.getElementById('btnTP')?.addEventListener('click', () => setMode('TP'));
+  document.getElementById('quickTimeframe')?.addEventListener('change', event => {
+    if (event.target.value) setPanelTimeframe(activeChartPanelId, event.target.value);
+    event.target.value = '';
+  });
   const actualLayoutSelect = document.getElementById('actualTradeLayout');
   if (actualLayoutSelect) {
     actualLayoutSelect.value = actualTradeLayout;
