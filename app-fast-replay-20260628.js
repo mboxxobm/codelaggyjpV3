@@ -4,6 +4,7 @@
 let ticks = [];          // [{time: unix_sec (UTC), price, volume}, ...] sorted asc
 let cursor = 0;
 let lastReplayKeyAt = 0; // prevents key-repeat / accidental double press from overshooting
+let lastReplayDirection = 0;
 let replaySeriesCache = null; // pre-aggregated candles/VWAP for fast Z/X replay
 let autoPlay = null;
 let drawMode = null;     // null | 'hline' | 'ray' | 'rr'
@@ -1507,6 +1508,14 @@ function stepFromKeyboard(delta, event) {
   const now = performance.now();
   if (now - lastReplayKeyAt < 180) return;
   lastReplayKeyAt = now;
+  // Changing direction is a safety stop.  For example, after repeated Z,
+  // the first X only stops the replay; a following X performs the advance.
+  if (lastReplayDirection && lastReplayDirection !== delta) {
+    lastReplayDirection = delta;
+    document.getElementById('loadStatus').textContent = '方向変更で停止しました。もう一度押すと移動します。';
+    return;
+  }
+  lastReplayDirection = delta;
   step(delta);
 }
 
