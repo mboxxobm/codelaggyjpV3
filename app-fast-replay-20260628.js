@@ -135,7 +135,11 @@ function initCharts() {
         borderColor: '#2a2e39',
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 5,
+        // Do not extrapolate the right-side padding across non-trading gaps.
+        // That previously made the final label appear as the year 2100.
+        rightOffset: 0,
+        fixRightEdge: true,
+        lockVisibleTimeRangeOnResize: true,
       },
     });
 
@@ -1596,7 +1600,7 @@ function applyInitialChartView() {
       } else {
         scale.setVisibleLogicalRange({
           from: Math.max(0, count - barsByTf),
-          to: count + 8,
+          to: Math.max(0, count - 0.2),
         });
       }
     });

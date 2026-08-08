@@ -34,7 +34,7 @@
       if (!count) return;
       if (entry.tf.sec >= 86400) { scale.fitContent(); return; }
       const barsPerDay = entry.tf.sec === 15 ? 1600 : entry.tf.sec === 120 ? 210 : entry.tf.sec === 600 ? 44 : 250;
-      scale.setVisibleLogicalRange({ from: Math.max(0, count - barsPerDay * days), to: count + 8 });
+      scale.setVisibleLogicalRange({ from: Math.max(0, count - barsPerDay * days), to: Math.max(0, count - 0.2) });
     }));
   }
   function applyOneDayView() {
@@ -43,7 +43,7 @@
       if (!count) return;
       if (entry.tf.sec >= 86400) { scale.fitContent(); return; }
       const barsPerDay = entry.tf.sec === 15 ? 1600 : entry.tf.sec === 120 ? 210 : entry.tf.sec === 600 ? 44 : 250;
-      scale.setVisibleLogicalRange({ from: Math.max(0, count - barsPerDay), to: count + 8 });
+      scale.setVisibleLogicalRange({ from: Math.max(0, count - barsPerDay), to: Math.max(0, count - 0.2) });
     }));
   }
   function matchingActualTrades() { return actualTrades.filter(row => String(row.symbol_code) === code()); }
