@@ -4,7 +4,7 @@
   const ACTUAL_STORE = 'codelaggy.actual-trades.v1';
   let markerMode = null;
   let actualTrades = [];
-  let actualTradesVisible = true;
+  let actualTradeLayout = localStorage.getItem('codelaggy.actual-trade-layout') || '0';
   const style = document.createElement('style');
   style.textContent = `
     body.embed-mode #toolbar { display:none !important; }
@@ -50,11 +50,19 @@
     const rows = read();
     charts.forEach(entry => {
       const markers = rows.map(row => ({ time: markerTime(entry, row.time), position: row.kind === 'TP' ? 'aboveBar' : row.side === 'SELL' ? 'aboveBar' : 'belowBar', color: row.kind === 'TP' ? '#26a69a' : row.side === 'SELL' ? '#ffb300' : '#42a5f5', shape: row.kind === 'TP' ? 'circle' : row.side === 'SELL' ? 'arrowDown' : 'arrowUp', text: row.kind === 'TP' ? 'TP' : `EP ${row.side}` }));
-      if (actualTradesVisible) matchingActualTrades().forEach(row => {
+      if (actualTradeLayout === '1' && entry.tf.sec < 86400) matchingActualTrades().forEach(row => {
         const buy = row.entry_side === 'BUY';
-        markers.push({ time: displayBucket(entry, row.entry_display_time), position: buy ? 'belowBar' : 'aboveBar', color: buy ? '#40a9ff' : '#ff9800', shape: buy ? 'arrowUp' : 'arrowDown', text: `IN ${buy ? 'BUY' : 'SELL'} ¥${Number(row.entry_price).toLocaleString()}` });
-        markers.push({ time: displayBucket(entry, row.exit_display_time), position: buy ? 'aboveBar' : 'belowBar', color: '#ef5350', shape: 'circle', text: `OUT ¥${Number(row.exit_price).toLocaleString()}` });
+        markers.push({ time: displayBucket(entry, row.entry_display_time), position: buy ? 'belowBar' : 'aboveBar', color: buy ? '#40a9ff' : '#ff9800', shape: buy ? 'arrowUp' : 'arrowDown' });
+        markers.push({ time: displayBucket(entry, row.exit_display_time), position: buy ? 'aboveBar' : 'belowBar', color: '#ef5350', shape: 'circle' });
       });
+      if (actualTradeLayout === '2' && entry.tf.sec >= 86400) {
+        const daily = new Map();
+        matchingActualTrades().forEach(row => { const day = String(row.trade_date); daily.set(day, (daily.get(day) || 0) + 1); });
+        matchingActualTrades().filter(row => row.trade_date && daily.has(String(row.trade_date))).forEach(row => {
+          const day = String(row.trade_date); const count = daily.get(day); daily.delete(day);
+          markers.push({ time: displayBucket(entry, row.entry_display_time), position: 'aboveBar', color: '#b388ff', shape: 'circle', text: `実取引 ${count}件` });
+        });
+      }
       markers.sort((a, b) => Number(a.time) - Number(b.time));
       try { entry.candleSeries.setMarkers(markers); } catch (_) {}
     });
@@ -77,7 +85,11 @@
   const panel = document.createElement('aside'); panel.id = 'reviewPanel'; document.body.appendChild(panel);
   document.getElementById('btnEP')?.addEventListener('click', () => setMode('EP'));
   document.getElementById('btnTP')?.addEventListener('click', () => setMode('TP'));
-  document.getElementById('btnActualTrades')?.addEventListener('click', event => { actualTradesVisible = !actualTradesVisible; event.currentTarget.classList.toggle('active', actualTradesVisible); refreshMarkers(); });
+  const actualLayoutSelect = document.getElementById('actualTradeLayout');
+  if (actualLayoutSelect) {
+    actualLayoutSelect.value = actualTradeLayout;
+    actualLayoutSelect.addEventListener('change', event => { actualTradeLayout = event.target.value; localStorage.setItem('codelaggy.actual-trade-layout', actualTradeLayout); refreshMarkers(); });
+  }
   document.getElementById('btnMultiDayView')?.addEventListener('click', () => applyMultiDayView(3));
   document.getElementById('btnOneDayView')?.addEventListener('click', applyOneDayView);
   document.getElementById('btnActualTradeImport')?.addEventListener('click', () => document.getElementById('actualTradeFile')?.click());

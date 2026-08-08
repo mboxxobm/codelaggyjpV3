@@ -746,7 +746,11 @@
     <button id="btnRRToggle" title="RR表示切替 (G)">RR表示</button>
     <button id="btnEP" title="EP（推奨エントリー）をチャートへ記録">EP</button>
     <button id="btnTP" title="TP（決済ポイント）をチャートへ記録">TP</button>
-    <button id="btnActualTrades" class="active" title="実取引のエントリー／決済印を表示・非表示">実取引</button>
+    <select id="actualTradeLayout" title="実取引マーカーの表示方法">
+      <option value="0">実取引: OFF</option>
+      <option value="1">実取引: 1 分足</option>
+      <option value="2">実取引: 2 日別</option>
+    </select>
     <input id="actualTradeFile" type="file" accept=".csv,text/csv" style="display:none">
     <button id="btnActualTradeImport" title="松井証券等の取引履歴CSVを追加">取引CSV</button>
     <button id="btnReviewList" title="この銘柄のEP／TP一覧">記録一覧</button>
@@ -904,6 +908,6 @@
 <script src="app-fast-replay-20260628.js?v=local-cache-20260808"></script>
 <script src="board.js?v=fast-replay-3"></script>
 <script src="layout.js?v=layout-e-1"></script>
-<script src="restore-v2-addon.js?v=local-cache-20260808"></script>
+<script src="restore-v2-addon.js?v=actual-trade-layout-20260808"></script>
 </body>
 </html>
