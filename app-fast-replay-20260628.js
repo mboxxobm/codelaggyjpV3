@@ -135,10 +135,10 @@ function initCharts() {
         borderColor: '#2a2e39',
         timeVisible: true,
         secondsVisible: false,
-        // Do not extrapolate the right-side padding across non-trading gaps.
-        // That previously made the final label appear as the year 2100.
-        rightOffset: 0,
-        fixRightEdge: true,
+        // Keep a small logical-bar margin for replay.  The margin is moved with
+        // the replay cursor (rather than extending a calendar-time range).
+        rightOffset: 6,
+        fixRightEdge: false,
         lockVisibleTimeRangeOnResize: true,
       },
     });
@@ -1494,6 +1494,12 @@ function step(delta) {
   render();
   followMode = prevFollowMode;
   restoreVisibleRanges(ranges);
+  // Keep the replay candle visible with a fixed blank area on its right.
+  // scrollToPosition works in bars, so it cannot manufacture a year-2100 date
+  // during market-closed gaps.
+  requestAnimationFrame(() => charts.forEach(entry => {
+    try { entry.chart.timeScale().scrollToPosition(6, false); } catch (_) {}
+  }));
 }
 
 function goStart() {
