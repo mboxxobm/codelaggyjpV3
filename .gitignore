@@ -1,5 +1,6 @@
 # R2から再取得できるデータ・ローカル実行ログはGitHubへ含めない
 r2-downloads/
+actual-trades.json
 server.log
 .DS_Store
 *.pyc

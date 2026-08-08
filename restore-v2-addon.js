@@ -1,7 +1,10 @@
 /* 2026-08-06 recovery additions: EP/TP review points + quad replay sync. */
 (() => {
   const STORE_PREFIX = 'codelaggy.review-points.v1.';
+  const ACTUAL_STORE = 'codelaggy.actual-trades.v1';
   let markerMode = null;
+  let actualTrades = [];
+  let actualTradesVisible = true;
   const style = document.createElement('style');
   style.textContent = `
     body.embed-mode #toolbar { display:none !important; }
@@ -21,10 +24,20 @@
   function read() { try { return JSON.parse(localStorage.getItem(STORE_PREFIX + code()) || '[]'); } catch (_) { return []; } }
   function write(rows) { localStorage.setItem(STORE_PREFIX + code(), JSON.stringify(rows)); }
   function markerTime(entry, time) { return entry.tf.sec >= 86400 ? Math.floor(Number(time) / 86400) * 86400 : Number(time); }
+  function displayBucket(entry, displayTime) {
+    return toDisplay(bucketTimeUTC(Number(displayTime) - JST_OFFSET, entry.tf.sec));
+  }
+  function matchingActualTrades() { return actualTrades.filter(row => String(row.symbol_code) === code()); }
   function refreshMarkers() {
     const rows = read();
     charts.forEach(entry => {
       const markers = rows.map(row => ({ time: markerTime(entry, row.time), position: row.kind === 'TP' ? 'aboveBar' : row.side === 'SELL' ? 'aboveBar' : 'belowBar', color: row.kind === 'TP' ? '#26a69a' : row.side === 'SELL' ? '#ffb300' : '#42a5f5', shape: row.kind === 'TP' ? 'circle' : row.side === 'SELL' ? 'arrowDown' : 'arrowUp', text: row.kind === 'TP' ? 'TP' : `EP ${row.side}` }));
+      if (actualTradesVisible) matchingActualTrades().forEach(row => {
+        const buy = row.entry_side === 'BUY';
+        markers.push({ time: displayBucket(entry, row.entry_display_time), position: buy ? 'belowBar' : 'aboveBar', color: buy ? '#40a9ff' : '#ff9800', shape: buy ? 'arrowUp' : 'arrowDown', text: `IN ${buy ? 'BUY' : 'SELL'} ¥${Number(row.entry_price).toLocaleString()}` });
+        markers.push({ time: displayBucket(entry, row.exit_display_time), position: buy ? 'aboveBar' : 'belowBar', color: '#ef5350', shape: 'circle', text: `OUT ¥${Number(row.exit_price).toLocaleString()}` });
+      });
+      markers.sort((a, b) => Number(a.time) - Number(b.time));
       try { entry.candleSeries.setMarkers(markers); } catch (_) {}
     });
   }
@@ -46,10 +59,24 @@
   const panel = document.createElement('aside'); panel.id = 'reviewPanel'; document.body.appendChild(panel);
   document.getElementById('btnEP')?.addEventListener('click', () => setMode('EP'));
   document.getElementById('btnTP')?.addEventListener('click', () => setMode('TP'));
+  document.getElementById('btnActualTrades')?.addEventListener('click', event => { actualTradesVisible = !actualTradesVisible; event.currentTarget.classList.toggle('active', actualTradesVisible); refreshMarkers(); });
+  document.getElementById('btnActualTradeImport')?.addEventListener('click', () => document.getElementById('actualTradeFile')?.click());
+  document.getElementById('actualTradeFile')?.addEventListener('change', async event => {
+    const file = event.target.files?.[0]; if (!file) return;
+    const text = await file.text(); const lines = text.replace(/^\uFEFF/, '').trim().split(/\r?\n/); const headers = lines.shift()?.split(',').map(x => x.trim()) || [];
+    const parsed = lines.map(line => { const cols = line.match(/(?:"([^"]*(?:""[^"]*)*)"|([^,]*))(?:,|$)/g)?.map(x => x.replace(/,$/, '').replace(/^"|"$/g, '').replace(/""/g, '"')) || []; return Object.fromEntries(headers.map((key, i) => [key, cols[i] || ''])); }).filter(row => row.symbol_code && row.trade_date);
+    const normalize = row => ({ ...row, symbol_code:String(row.symbol_code), entry_side:String(row.entry_side).toUpperCase(), entry_display_time:Date.parse(`${row.trade_date}T${row.entry_time}:00Z`) / 1000, exit_display_time:Date.parse(`${row.trade_date}T${row.exit_time}:00Z`) / 1000 });
+    const merged = new Map(actualTrades.map(row => [row.id, row])); parsed.map(normalize).forEach(row => merged.set(row.id, row)); actualTrades = [...merged.values()]; localStorage.setItem(ACTUAL_STORE, JSON.stringify(actualTrades)); refreshMarkers(); alert(`${parsed.length}件の実取引を追加しました`); event.target.value = '';
+  });
   document.getElementById('btnReviewList')?.addEventListener('click', () => { renderReviewPanel(); panel.classList.toggle('open'); });
   const originalRender = render; render = function recoveredRender() { originalRender(); refreshMarkers(); };
   const originalInitCharts = initCharts; initCharts = function recoveredInitCharts() { originalInitCharts(); refreshMarkers(); };
   window.addEventListener('message', event => { if (event.data?.type === 'codelaggy-step') step(Number(event.data.delta) || 0); });
   if (window.parent !== window) window.addEventListener('keydown', event => { if (event.target.matches('input,select,textarea')) return; const key = event.key.toLowerCase(); if (key !== 'z' && key !== 'x') return; event.preventDefault(); event.stopImmediatePropagation(); window.parent.postMessage({ type:'codelaggy-quad-step', delta:key === 'z' ? -1 : 1 }, location.origin); }, true);
+  (async () => {
+    try { actualTrades = JSON.parse(localStorage.getItem(ACTUAL_STORE) || '[]'); } catch (_) {}
+    if (!actualTrades.length) { try { actualTrades = await (await fetch('actual-trades.json', { cache:'no-store' })).json(); localStorage.setItem(ACTUAL_STORE, JSON.stringify(actualTrades)); } catch (_) {} }
+    refreshMarkers();
+  })();
   setTimeout(refreshMarkers, 1200);
 })();
