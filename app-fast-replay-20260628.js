@@ -1486,6 +1486,9 @@ function restoreVisibleRanges(ranges) {
 
 function step(delta) {
   if (ticks.length === 0) return;
+  // The logical ranges are captured before changing candle data and restored
+  // afterwards.  Thus Z/X changes only the replay data; it must never pan the
+  // time axis of any panel.
   const ranges = captureVisibleRanges();
   const sz = getStepSize();
   cursor = Math.max(0, Math.min(ticks.length - 1, cursor + delta * sz));
@@ -1494,12 +1497,6 @@ function step(delta) {
   render();
   followMode = prevFollowMode;
   restoreVisibleRanges(ranges);
-  // Keep the replay candle visible with a fixed blank area on its right.
-  // scrollToPosition works in bars, so it cannot manufacture a year-2100 date
-  // during market-closed gaps.
-  requestAnimationFrame(() => charts.forEach(entry => {
-    try { entry.chart.timeScale().scrollToPosition(6, false); } catch (_) {}
-  }));
 }
 
 function goStart() {
