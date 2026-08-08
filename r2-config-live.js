@@ -1,4 +1,6 @@
 window.R2_DATA_CONFIG = {
-  manifestUrl: 'https://pub-78d970a1967a4820a5c10a48300d5d1c.r2.dev/chart-data/manifest-live.json',
-  publicBaseUrl: 'https://pub-78d970a1967a4820a5c10a48300d5d1c.r2.dev',
+  // R2 public endpoint does not send browser CORS headers. The downloader
+  // keeps a local manifest + CSV cache so Safari always loads real ticks.
+  manifestUrl: 'local-r2-manifest.json',
+  publicBaseUrl: '.',
 };

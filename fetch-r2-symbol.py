@@ -45,6 +45,15 @@ def main() -> None:
         print(f'{code}: {row["date"]} {len(lines)-1:,} rows')
     combined = target / f'qr-{code}-{files[0]["date"]}-{files[-1]["date"]}-combined.csv'
     combined.write_text('\ufeff' + header + '\n' + '\n'.join(text_parts) + '\n', encoding='utf-8')
+    manifest_path = root / 'local-r2-manifest.json'
+    try:
+        local_manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    except (FileNotFoundError, json.JSONDecodeError):
+        local_manifest = {'version': 1, 'publicBaseUrl': '.', 'files': []}
+    other = [row for row in local_manifest.get('files', []) if str(row.get('code')) != code]
+    own = [{'code': code, 'date': row['date'], 'key': f'r2-downloads/{code}/qr-{code}-{row["date"]}.csv', 'size': (target / f'qr-{code}-{row["date"]}.csv').stat().st_size} for row in files]
+    local_manifest.update({'version': 1, 'publicBaseUrl': '.', 'files': sorted(other + own, key=lambda row: (str(row['code']), row['date']))})
+    manifest_path.write_text(json.dumps(local_manifest, ensure_ascii=False, indent=2), encoding='utf-8')
     print(f'combined: {combined} ({len(text_parts):,} rows)')
 
 if __name__ == '__main__':

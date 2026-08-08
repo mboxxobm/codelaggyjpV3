@@ -27,6 +27,24 @@
   function displayBucket(entry, displayTime) {
     return toDisplay(bucketTimeUTC(Number(displayTime) - JST_OFFSET, entry.tf.sec));
   }
+  function applyMultiDayView(days = 3) {
+    requestAnimationFrame(() => charts.forEach(entry => {
+      const scale = entry.chart.timeScale(); const count = entry.lastCandleCount || 0;
+      if (!count) return;
+      if (entry.tf.sec >= 86400) { scale.fitContent(); return; }
+      const barsPerDay = entry.tf.sec === 15 ? 1600 : entry.tf.sec === 120 ? 210 : entry.tf.sec === 600 ? 44 : 250;
+      scale.setVisibleLogicalRange({ from: Math.max(0, count - barsPerDay * days), to: count + 8 });
+    }));
+  }
+  function applyOneDayView() {
+    requestAnimationFrame(() => charts.forEach(entry => {
+      const scale = entry.chart.timeScale(); const count = entry.lastCandleCount || 0;
+      if (!count) return;
+      if (entry.tf.sec >= 86400) { scale.fitContent(); return; }
+      const barsPerDay = entry.tf.sec === 15 ? 1600 : entry.tf.sec === 120 ? 210 : entry.tf.sec === 600 ? 44 : 250;
+      scale.setVisibleLogicalRange({ from: Math.max(0, count - barsPerDay), to: count + 8 });
+    }));
+  }
   function matchingActualTrades() { return actualTrades.filter(row => String(row.symbol_code) === code()); }
   function refreshMarkers() {
     const rows = read();
@@ -60,6 +78,8 @@
   document.getElementById('btnEP')?.addEventListener('click', () => setMode('EP'));
   document.getElementById('btnTP')?.addEventListener('click', () => setMode('TP'));
   document.getElementById('btnActualTrades')?.addEventListener('click', event => { actualTradesVisible = !actualTradesVisible; event.currentTarget.classList.toggle('active', actualTradesVisible); refreshMarkers(); });
+  document.getElementById('btnMultiDayView')?.addEventListener('click', () => applyMultiDayView(3));
+  document.getElementById('btnOneDayView')?.addEventListener('click', applyOneDayView);
   document.getElementById('btnActualTradeImport')?.addEventListener('click', () => document.getElementById('actualTradeFile')?.click());
   document.getElementById('actualTradeFile')?.addEventListener('change', async event => {
     const file = event.target.files?.[0]; if (!file) return;
@@ -71,6 +91,12 @@
   document.getElementById('btnReviewList')?.addEventListener('click', () => { renderReviewPanel(); panel.classList.toggle('open'); });
   const originalRender = render; render = function recoveredRender() { originalRender(); refreshMarkers(); };
   const originalInitCharts = initCharts; initCharts = function recoveredInitCharts() { originalInitCharts(); refreshMarkers(); };
+  const originalInitialChartView = applyInitialChartView;
+  applyInitialChartView = function recoveredInitialChartView() {
+    originalInitialChartView();
+    const from = params.get('from'); const to = params.get('to');
+    if (from && to && from !== to) setTimeout(() => applyMultiDayView(3), 80);
+  };
   window.addEventListener('message', event => { if (event.data?.type === 'codelaggy-step') step(Number(event.data.delta) || 0); });
   if (window.parent !== window) window.addEventListener('keydown', event => { if (event.target.matches('input,select,textarea')) return; const key = event.key.toLowerCase(); if (key !== 'z' && key !== 'x') return; event.preventDefault(); event.stopImmediatePropagation(); window.parent.postMessage({ type:'codelaggy-quad-step', delta:key === 'z' ? -1 : 1 }, location.origin); }, true);
   (async () => {
