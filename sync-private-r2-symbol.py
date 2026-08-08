@@ -10,6 +10,8 @@ import json
 import os
 import re
 import sys
+import csv
+from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
@@ -64,6 +66,27 @@ except (FileNotFoundError, json.JSONDecodeError):
 other = [row for row in manifest.get('files', []) if str(row.get('code')) != code]
 manifest.update({'version': 1, 'publicBaseUrl': '.', 'files': sorted(other + entries, key=lambda row: (str(row['code']), row['date']))})
 manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
+# Precompute all daily candles.  The browser can keep the full historical
+# daily chart without parsing millions of intraday rows on every start.
+daily_bars = []
+for item in entries:
+    source = root / item['key']
+    with source.open(encoding='utf-8-sig', newline='') as fh:
+        values = []
+        for row in csv.DictReader(fh):
+            try:
+                values.append((row['時刻'], float(row['値段']), float(row['株数'])))
+            except (KeyError, TypeError, ValueError):
+                continue
+    if not values:
+        continue
+    values.sort(key=lambda row: row[0])
+    date = item['date']
+    time = int(datetime.strptime(date, '%Y%m%d').replace(tzinfo=timezone.utc).timestamp())
+    daily_bars.append({'time': time, 'open': values[0][1], 'high': max(row[1] for row in values), 'low': min(row[1] for row in values), 'close': values[-1][1], 'volume': sum(row[2] for row in values)})
+bars_path = root / 'local-bars' / code
+bars_path.mkdir(parents=True, exist_ok=True)
+(bars_path / '1d.json').write_text(json.dumps(daily_bars, ensure_ascii=False), encoding='utf-8')
 # Archive a single date-ordered CSV as well. The chart loads daily files for
 # speed, while this file is convenient for backup and external analysis.
 header = None

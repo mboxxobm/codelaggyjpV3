@@ -3067,9 +3067,13 @@ async function loadR2Symbol() {
     const fromDate = compactR2Date(fromInput?.value);
     const toDate = compactR2Date(toInput?.value);
     if (fromDate && toDate && fromDate > toDate) throw new Error('開始日は終了日以前にしてください');
-    const candidates = allCandidates.filter(file =>
+    const requestedCandidates = allCandidates.filter(file =>
       (!fromDate || file.date >= fromDate) && (!toDate || file.date <= toDate)
     );
+    // `fast=1` keeps intraday replay responsive. Daily history is loaded from
+    // the local precomputed cache by the recovery add-on.
+    const fastMode = new URLSearchParams(location.search).get('fast') === '1';
+    const candidates = fastMode && requestedCandidates.length > 7 ? requestedCandidates.slice(-7) : requestedCandidates;
 
     if (!candidates.length) {
       throw new Error(`${code} のCSVはR2一覧にありません`);
@@ -3127,7 +3131,9 @@ async function loadR2Symbol() {
       if (toDate) url.searchParams.set('to', toDate); else url.searchParams.delete('to');
       history.replaceState(null, '', url);
     }
-    setLoadStatus(`R2結合完了 ${candidates.length}日 / ${ticks.length.toLocaleString()}件`);
+    const fastNote = fastMode && requestedCandidates.length > candidates.length ? `（高速: ${requestedCandidates.length}日中${candidates.length}日）` : '';
+    setLoadStatus(`R2結合完了 ${candidates.length}日 / ${ticks.length.toLocaleString()}件${fastNote}`);
+    window.dispatchEvent(new CustomEvent('codelaggy:r2loaded', { detail: { code } }));
   } catch (error) {
     console.error(error);
     setLoadStatus('R2読込エラー');

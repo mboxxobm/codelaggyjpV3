@@ -5,6 +5,7 @@
   let markerMode = null;
   let actualTrades = [];
   let actualTradeLayout = localStorage.getItem('codelaggy.actual-trade-layout') || '0';
+  let dailyHistory = [];
   const style = document.createElement('style');
   style.textContent = `
     body.embed-mode #toolbar { display:none !important; }
@@ -67,6 +68,20 @@
       try { entry.candleSeries.setMarkers(markers); } catch (_) {}
     });
   }
+  function setDailyHistory() {
+    const entry = charts.find(item => item.tf.sec === 86400);
+    if (!entry || !dailyHistory.length) return;
+    entry.candleSeries.setData(dailyHistory);
+    entry.volumeSeries.setData(dailyHistory.map(row => ({ time: row.time, value: row.volume, color: row.close >= row.open ? 'rgba(0,230,118,.35)' : 'rgba(255,82,82,.35)' })));
+    entry.lastCandleCount = dailyHistory.length;
+    entry.chart.timeScale().fitContent();
+  }
+  async function loadDailyHistory() {
+    const response = await fetch(`local-bars/${code()}/1d.json`, { cache: 'force-cache' });
+    if (!response.ok) return;
+    dailyHistory = await response.json();
+    setDailyHistory();
+  }
   function setMode(next) { markerMode = markerMode === next ? null : next; setDrawMode(markerMode ? markerMode.toLowerCase() : null); document.getElementById('btnEP')?.classList.toggle('active', markerMode === 'EP'); document.getElementById('btnTP')?.classList.toggle('active', markerMode === 'TP'); }
   window.__reviewMarkerClick = (entry, price, time) => {
     const kind = markerMode === 'TP' ? 'TP' : 'EP';
@@ -105,7 +120,7 @@
     const merged = new Map(actualTrades.map(row => [row.id, row])); parsed.map(normalize).forEach(row => merged.set(row.id, row)); actualTrades = [...merged.values()]; localStorage.setItem(ACTUAL_STORE, JSON.stringify(actualTrades)); refreshMarkers(); alert(`${parsed.length}件の実取引を追加しました`); event.target.value = '';
   });
   document.getElementById('btnReviewList')?.addEventListener('click', () => { renderReviewPanel(); panel.classList.toggle('open'); });
-  const originalRender = render; render = function recoveredRender() { originalRender(); refreshMarkers(); };
+  const originalRender = render; render = function recoveredRender() { originalRender(); refreshMarkers(); if (dailyHistory.length) setDailyHistory(); };
   const originalInitCharts = initCharts; initCharts = function recoveredInitCharts() { originalInitCharts(); refreshMarkers(); };
   const originalInitialChartView = applyInitialChartView;
   applyInitialChartView = function recoveredInitialChartView() {
@@ -114,6 +129,7 @@
     if (from && to && from !== to) setTimeout(() => applyMultiDayView(3), 80);
   };
   window.addEventListener('message', event => { if (event.data?.type === 'codelaggy-step') step(Number(event.data.delta) || 0); });
+  window.addEventListener('codelaggy:r2loaded', () => { loadDailyHistory(); });
   if (window.parent !== window) window.addEventListener('keydown', event => { if (event.target.matches('input,select,textarea')) return; const key = event.key.toLowerCase(); if (key !== 'z' && key !== 'x') return; event.preventDefault(); event.stopImmediatePropagation(); window.parent.postMessage({ type:'codelaggy-quad-step', delta:key === 'z' ? -1 : 1 }, location.origin); }, true);
   (async () => {
     try { actualTrades = JSON.parse(localStorage.getItem(ACTUAL_STORE) || '[]'); } catch (_) {}
