@@ -373,6 +373,18 @@
   #main.layout-e #boardPanel,
   #main.layout-e #ayumiPanel { display: none; }
 
+  /* Layout F: analysis + trading — Daily / 2 min at left, wide 15 sec at right */
+  #main.layout-f {
+    grid-template-columns: minmax(280px, var(--col-a)) minmax(420px, var(--col-b));
+    grid-template-rows: var(--row-1) var(--row-2);
+    grid-template-areas:
+      "p1d p10m"
+      "p2m p10m";
+  }
+  #main.layout-f #p5m,
+  #main.layout-f #boardPanel,
+  #main.layout-f #ayumiPanel { display: none; }
+
   /* Single chart mode: TradingView-style focus chart */
   body.single-chart-mode #main {
     display: block;
@@ -402,7 +414,8 @@
   }
   /* In layout-d, Daily becomes an inline grid cell, not floating */
   #main.layout-d #p1d,
-  #main.layout-e #p1d {
+  #main.layout-e #p1d,
+  #main.layout-f #p1d {
     position: static;
     width: auto; height: auto;
     right: auto; bottom: auto;
@@ -414,11 +427,13 @@
     transition: none;
   }
   #main.layout-d #p1d.expanded,
-  #main.layout-e #p1d.expanded {
+  #main.layout-e #p1d.expanded,
+  #main.layout-f #p1d.expanded {
     width: auto; height: auto; right: auto; bottom: auto;
   }
   #main.layout-d #p1d .expand-hint,
-  #main.layout-e #p1d .expand-hint { display: none; }
+  #main.layout-e #p1d .expand-hint,
+  #main.layout-f #p1d .expand-hint { display: none; }
 
   #p2m  { grid-area: p2m;  }
   #p5m  { grid-area: p5m;  }
@@ -831,6 +846,7 @@
         <option value="c">C: チャートのみ</option>
         <option value="d">D: 日足インライン</option>
         <option value="e">E: 日足＋可変MTF 3画面</option>
+        <option value="f">F: 分析・トレード（日足＋2分＋15秒）</option>
       </select>
     </div>
     <button id="btnResetLayout" title="列幅・行高をリセット">レイアウトをリセット</button>
@@ -912,7 +928,7 @@
 <script src="r2-config-live.js?v=local-cache-20260808"></script>
 <script src="app-fast-replay-20260628.js?v=replay-direction-stop-20260808"></script>
 <script src="board.js?v=fast-replay-3"></script>
-<script src="layout.js?v=layout-e-1"></script>
+<script src="layout.js?v=layout-trade-f-20260809"></script>
 <script src="restore-v2-addon.js?v=trade-layout-query-20260809"></script>
 </body>
 </html>

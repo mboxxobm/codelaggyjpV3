@@ -380,6 +380,15 @@ window.__applyLayoutEPreset = function () {
   setActiveChartPanel('p10m');
 };
 
+window.__applyLayoutTradePreset = function () {
+  applyTimeframeSet([
+    ['p1d', 'D'],
+    ['p2m', '2'],
+    ['p10m', '15s'],
+  ]);
+  setActiveChartPanel('p10m');
+};
+
 window.__restoreStandardTimeframes = function () {
   applyTimeframeSet([
     ['p2m', '2'],
