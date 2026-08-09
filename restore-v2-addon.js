@@ -20,6 +20,8 @@
   `;
   document.head.appendChild(style);
   const params = new URLSearchParams(location.search);
+  const requestedActualLayout = params.get('trades');
+  if (['0', '1', '2'].includes(requestedActualLayout)) actualTradeLayout = requestedActualLayout;
   if (params.get('embed') === '1') document.body.classList.add('embed-mode');
   function code() { return (document.getElementById('r2Symbol')?.value || currentSymbolCode || 'unknown').toUpperCase(); }
   function read() { try { return JSON.parse(localStorage.getItem(STORE_PREFIX + code()) || '[]'); } catch (_) { return []; } }
