@@ -385,6 +385,17 @@
   #main.layout-f #boardPanel,
   #main.layout-f #ayumiPanel { display: none; }
 
+  /* Layout G: desk layout — Daily / 2 min / wide 15 sec + board and time & sales */
+  #main.layout-g {
+    grid-template-columns: var(--col-a) var(--col-b) var(--col-c) var(--col-d);
+    grid-template-rows: var(--row-1) var(--row-2);
+    grid-template-areas:
+      "p5m p2m board ayumi"
+      "p10m p10m board ayumi";
+  }
+  /* The daily chart is p5m in this layout; hide the separate floating Daily window. */
+  #main.layout-g #p1d { display: none !important; }
+
   /* Single chart mode: TradingView-style focus chart */
   body.single-chart-mode #main {
     display: block;
@@ -847,6 +858,7 @@
         <option value="d">D: 日足インライン</option>
         <option value="e">E: 日足＋可変MTF 3画面</option>
         <option value="f">F: 分析・トレード（日足＋2分＋15秒）</option>
+        <option value="g">G: デスク（日足＋2分＋15秒＋気配値＋歩み値）</option>
       </select>
     </div>
     <button id="btnResetLayout" title="列幅・行高をリセット">レイアウトをリセット</button>
@@ -926,9 +938,9 @@
 <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 <script src="jp-symbols.js"></script>
 <script src="r2-config-live.js?v=local-cache-20260808"></script>
-<script src="app-fast-replay-20260628.js?v=replay-direction-stop-20260808"></script>
+<script src="app-fast-replay-20260628.js?v=layout-desk-g-20260809"></script>
 <script src="board.js?v=fast-replay-3"></script>
-<script src="layout.js?v=layout-trade-f-20260809"></script>
+<script src="layout.js?v=layout-desk-g-20260809"></script>
 <script src="restore-v2-addon.js?v=trade-layout-query-20260809"></script>
 </body>
 </html>

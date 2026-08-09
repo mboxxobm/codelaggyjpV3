@@ -14,6 +14,7 @@
     d: { '--col-daily': '300px', '--col-a': '2.00fr', '--col-b': '0.90fr', '--col-c': '280px', '--col-d': '270px', '--row-1': '1.05fr', '--row-2': '0.95fr' },
     e: { '--col-daily': '300px', '--col-a': '0.85fr', '--col-b': '1.70fr', '--col-c': '0px', '--col-d': '0px', '--row-1': '1fr', '--row-2': '1fr' },
     f: { '--col-daily': '300px', '--col-a': '0.85fr', '--col-b': '1.70fr', '--col-c': '0px', '--col-d': '0px', '--row-1': '1fr', '--row-2': '1fr' },
+    g: { '--col-daily': '0px', '--col-a': '1.00fr', '--col-b': '2.10fr', '--col-c': '280px', '--col-d': '270px', '--row-1': '1.05fr', '--row-2': '0.95fr' },
   };
 
   let currentLayout = null;
@@ -25,7 +26,7 @@
 
   function setLayout(layout) {
     const previousLayout = currentLayout;
-    main.classList.remove('layout-a', 'layout-b', 'layout-c', 'layout-d', 'layout-e', 'layout-f');
+    main.classList.remove('layout-a', 'layout-b', 'layout-c', 'layout-d', 'layout-e', 'layout-f', 'layout-g');
     main.classList.add('layout-' + layout);
     currentLayout = layout;
     applyDefaults(layout);
@@ -34,7 +35,9 @@
       window.__applyLayoutEPreset();
     } else if (layout === 'f' && window.__applyLayoutTradePreset) {
       window.__applyLayoutTradePreset();
-    } else if ((previousLayout === 'e' || previousLayout === 'f') && window.__restoreStandardTimeframes) {
+    } else if (layout === 'g' && window.__applyLayoutDeskPreset) {
+      window.__applyLayoutDeskPreset();
+    } else if ((previousLayout === 'e' || previousLayout === 'f' || previousLayout === 'g') && window.__restoreStandardTimeframes) {
       window.__restoreStandardTimeframes();
     }
     // Reflow charts and reposition resizers after CSS applies
@@ -46,7 +49,7 @@
 
   function updateResizerVisibility(layout) {
     // v3 only exists between col-c and col-d (layout-b and layout-d: both have board+ayumi columns)
-    document.getElementById('rz-v3').style.display = (layout === 'b' || layout === 'd') ? '' : 'none';
+    document.getElementById('rz-v3').style.display = (layout === 'b' || layout === 'd' || layout === 'g') ? '' : 'none';
     // v2 exists in layout a, b, d (chart/right-col boundary)
     document.getElementById('rz-v2').style.display = (layout === 'c' || layout === 'e' || layout === 'f') ? 'none' : '';
     // v1: charts a/b boundary — in layout-d p2m spans both chart cols, so hide it
@@ -175,7 +178,7 @@
   const daily = document.getElementById('p1d');
   if (daily) {
     daily.addEventListener('click', (e) => {
-      if (main.classList.contains('layout-d') || main.classList.contains('layout-e') || main.classList.contains('layout-f')) return;
+      if (main.classList.contains('layout-d') || main.classList.contains('layout-e') || main.classList.contains('layout-f') || main.classList.contains('layout-g')) return;
       // Prevent clicks on the embedded chart from bubbling and toggling
       // (lightweight-charts absorbs clicks when expanded, so only react to
       // clicks on the panel itself, the label, or the hint)
@@ -206,7 +209,7 @@
 
   // Initial apply: URL can request a shareable preset, otherwise layout-b.
   const requestedLayout = new URLSearchParams(location.search).get('layout');
-  const initialLayout = ['a', 'b', 'c', 'd', 'e', 'f'].includes(requestedLayout) ? requestedLayout : 'b';
+  const initialLayout = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].includes(requestedLayout) ? requestedLayout : 'b';
   layoutSelect.value = initialLayout;
   setLayout(initialLayout);
   // Position after first paint

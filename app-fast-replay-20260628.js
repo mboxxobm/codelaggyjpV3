@@ -389,6 +389,15 @@ window.__applyLayoutTradePreset = function () {
   setActiveChartPanel('p10m');
 };
 
+window.__applyLayoutDeskPreset = function () {
+  applyTimeframeSet([
+    ['p5m', 'D'],
+    ['p2m', '2'],
+    ['p10m', '15s'],
+  ]);
+  setActiveChartPanel('p10m');
+};
+
 window.__restoreStandardTimeframes = function () {
   applyTimeframeSet([
     ['p2m', '2'],
