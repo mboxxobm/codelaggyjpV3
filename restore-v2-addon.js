@@ -122,7 +122,7 @@
     const merged = new Map(actualTrades.map(row => [row.id, row])); parsed.map(normalize).forEach(row => merged.set(row.id, row)); actualTrades = [...merged.values()]; localStorage.setItem(ACTUAL_STORE, JSON.stringify(actualTrades)); refreshMarkers(); alert(`${parsed.length}件の実取引を追加しました`); event.target.value = '';
   });
   document.getElementById('btnReviewList')?.addEventListener('click', () => { renderReviewPanel(); panel.classList.toggle('open'); });
-  const originalRender = render; render = function recoveredRender() { originalRender(); refreshMarkers(); if (dailyHistory.length) setDailyHistory(); };
+  const originalRender = render; render = function recoveredRender(...args) { originalRender(...args); if (!args[0]?.fast) { refreshMarkers(); if (dailyHistory.length) setDailyHistory(); } };
   const originalInitCharts = initCharts; initCharts = function recoveredInitCharts() { originalInitCharts(); refreshMarkers(); };
   const originalInitialChartView = applyInitialChartView;
   applyInitialChartView = function recoveredInitialChartView() {

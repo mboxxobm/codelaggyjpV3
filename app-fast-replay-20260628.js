@@ -5,6 +5,7 @@ let ticks = [];          // [{time: unix_sec (UTC), price, volume}, ...] sorted 
 let cursor = 0;
 let lastReplayKeyAt = 0; // prevents key-repeat / accidental double press from overshooting
 let lastReplayDirection = 0;
+let deferredFullRender = null;
 let replaySeriesCache = null; // pre-aggregated candles/VWAP for fast Z/X replay
 let autoPlay = null;
 let drawMode = null;     // null | 'hline' | 'ray' | 'rr'
@@ -33,6 +34,10 @@ let rrCurrent = null;    // current RR overlay: {entry, sl, tp, items:[]}
 
 // ---------- constants ----------
 const JST_OFFSET = 9 * 3600;  // +9h in seconds
+
+function startAtOpenOnLoad() {
+  return new URLSearchParams(location.search).get('start') !== 'end';
+}
 
 // ---------- charts ----------
 const TF = [
@@ -1397,7 +1402,8 @@ function getReplaySeriesData(tf, tickIndex) {
 }
 
 // ---------- Render ----------
-function render() {
+function render(options = {}) {
+  const fast = options.fast === true;
   const renderStartedAt = performance.now();
   let chartRenderMs = 0;
   charts.forEach((entry) => {
@@ -1408,9 +1414,11 @@ function render() {
     entry.volumeCandleData = volumeCandles;
     candleSeries.setData(candles);
     volumeSeries.setData(volumes);
-    drawExecutedProfile(entry);
-    drawVolumeCandles(entry);
-    drawRRRays(entry);
+    if (!fast) {
+      drawExecutedProfile(entry);
+      drawVolumeCandles(entry);
+      drawRRRays(entry);
+    }
 
     // VWAP (skip for daily)
     if (tf.sec < 86400) {
@@ -1441,10 +1449,10 @@ function render() {
 
   // Board/Ayumi hook — exposes state for board.js
   const boardStartedAt = performance.now();
-  if (window.__boardSync) window.__boardSync(ticks, cursor);
+  if (!fast && window.__boardSync) window.__boardSync(ticks, cursor);
   const boardRenderMs = performance.now() - boardStartedAt;
   const profileStartedAt = performance.now();
-  charts.forEach(entry => drawBoardProfile(entry));
+  if (!fast) charts.forEach(entry => drawBoardProfile(entry));
   const replayRenderPerf = {
     totalMs: Math.round((performance.now() - renderStartedAt) * 10) / 10,
     chartMs: Math.round(chartRenderMs * 10) / 10,
@@ -1458,6 +1466,14 @@ function render() {
 }
 
 window.__requestRender = render;
+
+function scheduleFullRender() {
+  if (deferredFullRender) clearTimeout(deferredFullRender);
+  deferredFullRender = setTimeout(() => {
+    deferredFullRender = null;
+    render();
+  }, 80);
+}
 
 // ---------- Navigation ----------
 function getStepSize() {
@@ -1492,16 +1508,9 @@ function restoreVisibleRanges(ranges) {
           return;
         } catch (_) {}
       }
-      if (timeRange && timeRange.from != null && timeRange.to != null) {
-        try { scale.setVisibleRange(timeRange); } catch (_) {}
-      }
     });
   };
-  apply();
-  requestAnimationFrame(() => {
-    apply();
-    requestAnimationFrame(apply);
-  });
+  requestAnimationFrame(apply);
 }
 
 function step(delta) {
@@ -1514,9 +1523,10 @@ function step(delta) {
   cursor = Math.max(0, Math.min(ticks.length - 1, cursor + delta * sz));
   const prevFollowMode = followMode;
   followMode = false;
-  render();
+  render({ fast: true });
   followMode = prevFollowMode;
   restoreVisibleRanges(ranges);
+  scheduleFullRender();
 }
 
 function stepFromKeyboard(delta, event) {
@@ -1580,6 +1590,30 @@ function jumpToJstClock(hour, minute, second = 0) {
   const index = findLastTickIndexAtOrBefore(targetUtcSec);
   cursor = Math.max(0, index >= 0 ? index : 0);
   render();
+}
+
+function findFirstTickIndexAtOrAfter(targetUtcSec) {
+  let lo = 0;
+  let hi = ticks.length - 1;
+  let best = ticks.length;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (ticks[mid].time >= targetUtcSec) { best = mid; hi = mid - 1; }
+    else lo = mid + 1;
+  }
+  return best < ticks.length ? best : -1;
+}
+
+function jumpToOpening() {
+  if (ticks.length === 0) return;
+  stopAutoPlay();
+  const parts = getCurrentJstDateParts();
+  if (!parts) return;
+  const targetUtcSec = Date.UTC(parts.year, parts.month, parts.date, 9, 0, 0) / 1000 - JST_OFFSET;
+  const index = findFirstTickIndexAtOrAfter(targetUtcSec);
+  cursor = index >= 0 ? index : Math.max(0, findLastTickIndexAtOrBefore(targetUtcSec));
+  render();
+  applyMorningReplayView();
 }
 
 function jumpToJstDateTime(value) {
@@ -2736,7 +2770,7 @@ function applySymbolDataset(code, { replay = autoReplayOnLoad } = {}) {
   const lastTime = ticks[ticks.length - 1]?.time || firstTime;
   const loadedDays = Math.max(1, Math.round((lastTime - firstTime) / 86400) + 1);
   const effectiveReplay = replay && loadedDays <= 2;
-  cursor = effectiveReplay ? 0 : ticks.length - 1;
+  cursor = startAtOpenOnLoad() ? 0 : (effectiveReplay ? 0 : ticks.length - 1);
   updateFollowButton();
   drawnLines.length = 0;
   initCharts();
@@ -2881,7 +2915,7 @@ async function loadSelectedCSV({ replay = autoReplayOnLoad } = {}) {
   const lastTime = ticks[ticks.length - 1]?.time || firstTime;
   const loadedDays = Math.max(1, Math.round((lastTime - firstTime) / 86400) + 1);
   const effectiveReplay = replay && files.length <= 2 && loadedDays <= 2;
-  cursor = effectiveReplay ? 0 : ticks.length - 1;
+  cursor = startAtOpenOnLoad() ? 0 : (effectiveReplay ? 0 : ticks.length - 1);
   updateFollowButton();
   // Important: empty in-place (do NOT reassign), otherwise window.__drawnLines
   // keeps pointing at the old array and board.js can't see newly drawn lines.
@@ -3171,7 +3205,7 @@ async function loadR2Symbol() {
     currentSymbolCode = null;
     updateSymbolSelect();
     ticks = allTicks;
-    cursor = ticks.length - 1;
+    cursor = startAtOpenOnLoad() ? 0 : ticks.length - 1;
     updateFollowButton();
     drawnLines.length = 0;
     initCharts();
@@ -3345,6 +3379,8 @@ if (symbolSearchResults) {
       if (event.key === 'Enter') { event.preventDefault(); jumpToJstDateTime(jumpDateTimeInput.value); }
     });
   }
+  const jumpOpenBtn = document.getElementById('btnJumpOpen');
+  if (jumpOpenBtn) jumpOpenBtn.addEventListener('click', jumpToOpening);
   const boardProfileSettingsBtn = document.getElementById('btnBoardProfileSettings');
   if (boardProfileSettingsBtn) boardProfileSettingsBtn.addEventListener('click', toggleBoardProfile);
   const executedProfileSettingsBtn = document.getElementById('btnExecutedProfileSettings');
